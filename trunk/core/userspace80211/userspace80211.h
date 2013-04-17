@@ -314,8 +314,8 @@ int userspace80211_sockets_remove(int sock_index);
 
 int init_stub80211_nl(void);
 int send_stub80211(int sockfd, uint8_t *buf, size_t len, int flags);
-int nack_send(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg);
-int ack_send(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg);
+int nack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg);
+int ack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg);
 
 int get_fdf(int sock_index, uint64_t sock_id, struct finsFrame **ff, int non_blocking_flag);
 int get_fcf(int sock_index, uint64_t sock_id, struct finsFrame **ff, int non_blocking_flag); //blocking doesn't matter

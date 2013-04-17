@@ -41,6 +41,8 @@
 #define RTM_ID 8
 #define LOGGER_ID 9
 #define MAX_ID 10
+#define USERSPACE80211_ID 33
+
 
 #define IP_ID IPV4_ID //TODO remove?
 //control message types - finsCtrlFrame.opcode values

@@ -33,6 +33,10 @@
 //#include <rtm.h>
 #include <logger.h>
 
+//Abdallah added
+
+#include <userspace80211.h>
+
 extern sem_t control_serial_sem; //TODO remove & change gen process to RNG
 
 #define MAX_Queue_size 100000
@@ -172,6 +176,9 @@ void core_main() {
 	icmp_init();
 	tcp_init();
 	udp_init();
+
+
+
 
 	//rtm_init(); //TODO when updated/fully implemented
 	logger_init();
