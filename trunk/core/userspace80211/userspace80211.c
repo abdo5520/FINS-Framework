@@ -1,3 +1,13 @@
+/*
+ * @file userspace80211.c
+ *
+ * @date Mar 6, 2013
+ *      @author Abdallah Abdallah
+ *      @brief  This is the IEEE 802.11 Stub Thread
+ *      which runs as a FINS FW module
+ */
+
+
 #include "userspace80211.h"
 
 
@@ -5,6 +15,7 @@
 static struct fins_proto_module userspace80211_proto = { .module_id = USERSPACE80211_ID, .name = "userspace80211", .running_flag = 1, };
 
 pthread_t stub80211_to_userspace80211_thread;
+pthread_t userspace80211_to_stub80211_thread;
 pthread_t switch_to_userspace80211_thread;
 
 sem_t userspace80211_sockets_sem;
@@ -13,11 +24,20 @@ struct userspace80211_socket userspace80211_sockets[MAX_SOCKETS];
 struct userspace80211_call userspace80211_calls[MAX_CALLS];
 struct userspace80211_call_list *expired_call_list;
 
+/**
+ * count how many thread of the stub runs as how many socket handler was launched
+ * in case of the daemon.c where we copied the module's administration code
+ */
+
 int userspace80211_thread_count;
 
 uint8_t userspace80211_interrupt_flag;
 
-
+/**
+ *
+ *
+ *
+ */
 int init_stub80211_nl(void) {
 	int sockfd;
 	int ret;
@@ -52,18 +72,28 @@ int init_stub80211_nl(void) {
 
 	return sockfd;
 }
-
-/*
- * Sends len bytes from buf on the sockfd.  Returns 0 if successful.  Returns -1 if an error occurred, errno set appropriately.
+/**
+ *
+ * Sends len bytes from buf on the sockfd.  Returns 0 if successful.  Returns -1 if an error occurred, errno set appropriately. *
+ *
  */
+
+
 int send_stub80211(int sockfd, uint8_t *buf, size_t len, int flags) {
 	PRINT_DEBUG("Entered: sockfd=%d, buf=%p, len=%d, flags=0x%x", sockfd, buf, len, flags);
 
 	int ret; // Holds system call return values for error checking
-
+	struct nl_userspace80211_to_stub80211_msg *parserP;
+	parserP = (struct nl_userspace80211_to_stub80211_msg *) buf;
+	int nlmsg_len;
 	// Begin send message section
 	// Build a message to send to the kernel
-	int nlmsg_len = NLMSG_LENGTH(len);
+	if (parserP->commandValueLength ==0)
+		// nlmsg_len only equal the structure length passed in the function call
+	nlmsg_len = NLMSG_LENGTH(len);
+	else
+	nlmsg_len = NLMSG_LENGTH(len  + parserP->commandValueLength);
+
 	struct nlmsghdr *nlh = (struct nlmsghdr *) secure_malloc(nlmsg_len);
 	memset(nlh, 0, nlmsg_len);
 
@@ -74,8 +104,24 @@ int send_stub80211(int sockfd, uint8_t *buf, size_t len, int flags) {
 	nlh->nlmsg_pid = getpid(); // pthread_self() << 16 | getpid();	// use the second one for multiple threads
 	nlh->nlmsg_flags = flags;
 
+
+
+
+	if (parserP->commandValueLength !=0)
+	{
+		// TODO Test using non zero value commands
+		memcpy(NLMSG_DATA(nlh), buf, len);
+		// copy the contents of the value starting from location (len-1) in the payload
+		memcpy(NLMSG_DATA(nlh)+len ,parserP->value, parserP->commandValueLength);
+
+	}
+	else
+	{
+
+		memcpy(NLMSG_DATA(nlh), buf, len);
+
+	}
 	// Insert payload (memcpy)
-	memcpy(NLMSG_DATA(nlh), buf, len);
 
 	// finish message packing
 	struct iovec iov;
@@ -109,6 +155,12 @@ int send_stub80211(int sockfd, uint8_t *buf, size_t len, int flags) {
 
 
 
+/**
+ *
+ *
+ *
+ *
+ */
 
 int nack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg) { //TODO remove extra params
 	int ret;
@@ -130,6 +182,12 @@ int nack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, ui
 
 	return ret == 1; //TODO change to ret_val ?
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int ack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, uint32_t msg) { //TODO remove extra params
 	int ret;
@@ -151,10 +209,22 @@ int ack_send_stub80211(uint32_t call_id, int call_index, uint32_t call_type, uin
 
 	return ret == 1; //TODO change to ret_val ?
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int userspace80211_to_switch(struct finsFrame *ff) {
 	return module_to_switch(&userspace80211_proto, ff);
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int userspace80211_fcf_to_switch(uint8_t dest_id, metadata *params, uint32_t serial_num, uint16_t opcode, uint32_t param_id) {
 	PRINT_DEBUG("Entered: module_id=%d, meta=%p, serial_num=%u, opcode=%u, param_id=%u", dest_id, params, serial_num, opcode, param_id);
@@ -181,6 +251,12 @@ int userspace80211_fcf_to_switch(uint8_t dest_id, metadata *params, uint32_t ser
 		return 0;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int userspace80211_fdf_to_switch(uint8_t dest_id, uint8_t *data, uint32_t data_len, metadata *params) {
 	PRINT_DEBUG("Entered: module_id=%u, data=%p, data_len=%u, meta=%p", dest_id, data, data_len, params);
@@ -204,6 +280,12 @@ int userspace80211_fdf_to_switch(uint8_t dest_id, uint8_t *data, uint32_t data_l
 		return 0;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int userspace80211_setNonblocking(int fd) {
 	int flags;
@@ -221,6 +303,12 @@ int userspace80211_setNonblocking(int fd) {
 	return ioctl(fd, FIOBIO, &flags);
 #endif
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 int userspace80211_setBlocking(int fd) {
 	int flags;
@@ -239,6 +327,12 @@ int userspace80211_setBlocking(int fd) {
 #endif
 }
 
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_out_ff(struct nl_stub80211_to_userspace80211 *hdr, uint8_t *msg_pt, int msg_len) {
 	PRINT_DEBUG("Entered: hdr=%p, sock_id=%llu, sock_index=%d, call_pid=%d,  call_type=%u, call_id=%u, call_index=%d, len=%d",
@@ -271,6 +365,12 @@ void userspace80211_out_ff(struct nl_stub80211_to_userspace80211 *hdr, uint8_t *
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void test_func_userspace80211(struct nl_stub80211_to_userspace80211 *hdr, uint8_t *msg_pt, int msg_len) {
 	PRINT_DEBUG("Entered: hdr=%p, sock_id=%llu, sock_index=%d, call_pid=%d, call_type=%u, call_id=%u, call_index=%d, len=%d",
@@ -308,6 +408,12 @@ void test_func_userspace80211(struct nl_stub80211_to_userspace80211 *hdr, uint8_
 		return;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void *stub80211_to_userspace80211(void *local) {
 	PRINT_IMPORTANT("Entered");
@@ -532,6 +638,12 @@ void *stub80211_to_userspace80211(void *local) {
 	//pthread_exit(NULL);
 	return NULL;
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void *switch_to_userspace80211(void *local) {
 	PRINT_IMPORTANT("Entered");
@@ -545,6 +657,61 @@ void *switch_to_userspace80211(void *local) {
 	//pthread_exit(NULL);
 	return NULL;
 }
+
+/**
+ *
+ *
+ *
+ *
+ */
+
+void *userspace80211_to_stub80211(void *local) {
+
+	enum stub80211_commands commandCode;
+	int ret;
+	int len;
+	struct nl_userspace80211_to_stub80211_msg *dataToSent;
+	int counter=1;
+	do
+	{
+		commandCode = STUB80211_CMD_SPECS;
+
+		// build the payload struct to be serialized and sent
+
+		dataToSent = malloc(sizeof(struct nl_userspace80211_to_stub80211_msg));
+
+		dataToSent->command_type = (uint16_t) commandCode;
+		dataToSent->commandValueLength = (uint16_t) 0;
+		dataToSent->value = NULL;
+
+		PRINT_DEBUG("size of the message struct = %d ",  sizeof(struct nl_userspace80211_to_stub80211_msg));
+
+
+		len = sizeof(struct nl_userspace80211_to_stub80211_msg);
+
+		ret = send_stub80211(nl_stub80211_sockfd, (uint8_t *) dataToSent, len, 0);
+
+		if (ret != 0) {
+				perror(" send_stub80211() caused an error");
+				exit(-1);
+			}
+
+		free(dataToSent);
+			PRINT_DEBUG("Message number %d sent to stub8011", counter );
+			sleep (1);
+			counter++;
+	}
+	while(1);
+
+
+
+}
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_handle_to(struct userspace80211_call *call) { //TODO finish transitioning to this TO system
 	PRINT_DEBUG("Entered: call=%p, call_index=%d", call, call->call_index);
@@ -560,6 +727,12 @@ void userspace80211_handle_to(struct userspace80211_call *call) { //TODO finish 
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_interrupt(void) {
 	PRINT_DEBUG("Entered");
@@ -580,6 +753,12 @@ void userspace80211_interrupt(void) {
 	PRINT_DEBUG("post$$$$$$$$$$$$$$$");
 	sem_post(&userspace80211_sockets_sem);
 }
+/**
+ *
+ *
+ *		@brief Read new FF from the Input Queue
+ *
+ */
 
 void userspace80211_get_ff(void) {
 	struct finsFrame *ff;
@@ -626,6 +805,12 @@ void userspace80211_get_ff(void) {
 		PRINT_ERROR("todo error");
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_fcf(struct finsFrame *ff) {
 	PRINT_DEBUG("Entered: ff=%p, meta=%p", ff, ff->metaData);
@@ -679,6 +864,12 @@ void userspace80211_fcf(struct finsFrame *ff) {
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_read_param_reply(struct finsFrame *ff) { //TODO update to new version once Daemon EXEC_CALL's are standardized, that and split //atm suited only for stub80211 pass through (TCP)
 	PRINT_DEBUG("wait$$$$$$$$$$$$$$$");
@@ -715,6 +906,12 @@ void userspace80211_read_param_reply(struct finsFrame *ff) { //TODO update to ne
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_exec_reply_new(struct finsFrame *ff) {
 	PRINT_DEBUG("Entered: ff=%p, meta=%p", ff, ff->metaData);
@@ -729,6 +926,12 @@ void userspace80211_exec_reply_new(struct finsFrame *ff) {
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_set_param_reply(struct finsFrame *ff) { //TODO update to new version once Daemon EXEC_CALL's are standardized, that and split //atm suited only for stub80211 pass through (TCP)
 	PRINT_DEBUG("wait$$$$$$$$$$$$$$$");
@@ -765,6 +968,12 @@ void userspace80211_set_param_reply(struct finsFrame *ff) { //TODO update to new
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_exec(struct finsFrame *ff) {
 	uint32_t protocol;
@@ -807,6 +1016,12 @@ void userspace80211_exec(struct finsFrame *ff) {
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_exec_reply(struct finsFrame *ff) { //TODO update to new version once Daemon EXEC_CALL's are standardized, that and split //atm suited only for stub80211 pass through (TCP)
 	PRINT_DEBUG("wait$$$$$$$$$$$$$$$");
@@ -880,6 +1095,12 @@ void userspace80211_exec_reply(struct finsFrame *ff) { //TODO update to new vers
 		}
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_error(struct finsFrame *ff) { //TODO expand for different error types, atm only for TTL expired/dest unreach
 	PRINT_DEBUG("Entered: ff=%p, meta=%p", ff, ff->metaData);
@@ -904,6 +1125,12 @@ void userspace80211_error(struct finsFrame *ff) { //TODO expand for different er
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_in_fdf(struct finsFrame *ff) {
 	PRINT_DEBUG("Entered: ff=%p, meta=%p, len=%d", ff, ff->metaData, ff->dataFrame.pduLength);
@@ -953,10 +1180,22 @@ void userspace80211_in_fdf(struct finsFrame *ff) {
 		break;
 	}
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_dummy(void) {
 
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_init(void) {
 	PRINT_IMPORTANT("Entered");
@@ -966,10 +1205,24 @@ void userspace80211_init(void) {
 	module_register(&userspace80211_proto);
 
 	//init_userspace80211Sockets();
+	/**
+	 * count how many thread of the stub runs as how many socket handler was launched
+	 * in case of the daemon.c where we copied the module's administration code
+	 */
+
 	userspace80211_thread_count = 0;
 
 	int i;
+	int ret;
+	int len;
 	sem_init(&userspace80211_sockets_sem, 0, 1);
+	/**
+	 * If we enable communicating with multiple 802.11 interfaces simaltaneously
+	 * then we will need similar code to what is used below between the different
+	 * operating sockets
+	 *
+	 */
+	/**
 	for (i = 0; i < MAX_SOCKETS; i++) {
 		userspace80211_sockets[i].sock_id = -1;
 		userspace80211_sockets[i].state = SS_FREE;
@@ -985,8 +1238,8 @@ void userspace80211_init(void) {
 		userspace80211_calls[i].to_data->sem = userspace80211_proto.event_sem;
 		timer_create_to((struct to_timer_data *) userspace80211_calls[i].to_data);
 	}
-
-	expired_call_list = call_list_create(MAX_CALLS);
+	*/
+//	expired_call_list = call_list_create(MAX_CALLS);
 
 	//init the netlink socket connection to userspace80211
 	nl_stub80211_sockfd = init_stub80211_nl();
@@ -996,22 +1249,53 @@ void userspace80211_init(void) {
 	}
 
 	//prime the kernel to establish userspace80211's PID
-	int userspace80211code = userspace80211_start_call;
-	int ret;
-	ret = send_stub80211(nl_stub80211_sockfd, (uint8_t *) &userspace80211code, sizeof(int), 0);
+	//u_int userspace80211code = userspace80211_start_call;
+	enum stub80211_commands userspace80211code = userspace80211_start_call;
+
+	// build the payload struct to be serialized and sent
+	struct nl_userspace80211_to_stub80211_msg *dataToSent;
+	dataToSent = malloc(sizeof(struct nl_userspace80211_to_stub80211_msg));
+
+	dataToSent->command_type = (uint16_t) userspace80211code;
+	dataToSent->commandValueLength = (uint16_t) 0;
+	dataToSent->value = NULL;
+
+	PRINT_DEBUG("size of the message struct = %d ",  sizeof(struct nl_userspace80211_to_stub80211_msg));
+	len = sizeof(struct nl_userspace80211_to_stub80211_msg);
+	ret = send_stub80211(nl_stub80211_sockfd, (uint8_t *) dataToSent, len, 0);
 	if (ret != 0) {
-		perror("sendfins() caused an error");
+		perror(" send_stub80211() caused an error");
 		exit(-1);
 	}
+
+	free(dataToSent);
 	PRINT_IMPORTANT("Connected to stub80211 at fd=%d", nl_stub80211_sockfd);
 }
-
+/**
+ *
+ *
+ *
+ *
+ */
 void userspace80211_run(pthread_attr_t *fins_pthread_attr) {
 	PRINT_IMPORTANT("Entered");
+	// For TEsting ONLY
 
-	secure_pthread_create(&stub80211_to_userspace80211_thread, fins_pthread_attr, stub80211_to_userspace80211, fins_pthread_attr);
-	secure_pthread_create(&switch_to_userspace80211_thread, fins_pthread_attr, switch_to_userspace80211, fins_pthread_attr);
+//	secure_pthread_create(&stub80211_to_userspace80211_thread, fins_pthread_attr, stub80211_to_userspace80211, fins_pthread_attr);
+	secure_pthread_create(&userspace80211_to_stub80211_thread, fins_pthread_attr, userspace80211_to_stub80211, fins_pthread_attr);
+//	secure_pthread_create(&switch_to_userspace80211_thread, fins_pthread_attr, switch_to_userspace80211, fins_pthread_attr);
+
+
+
+
 }
+
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_shutdown(void) {
 	PRINT_IMPORTANT("Entered");
@@ -1031,7 +1315,16 @@ void userspace80211_shutdown(void) {
 	pthread_join(switch_to_userspace80211_thread, NULL);
 	PRINT_IMPORTANT("Joining stub80211_to_userspace80211_thread");
 	pthread_join(stub80211_to_userspace80211_thread, NULL); //TODO change thread so can be stopped, atm is blocking
+
+	PRINT_IMPORTANT("Joining userspace80211_to_stub80211_thread");
+	pthread_join(userspace80211_to_stub80211_thread, NULL); //TODO change thread so can be stopped, atm is blocking
 }
+/**
+ *
+ *
+ *
+ *
+ */
 
 void userspace80211_release(void) {
 	PRINT_IMPORTANT("Entered");

@@ -164,41 +164,49 @@ void core_main() {
 	// Start the driving thread of each module
 	PRINT_IMPORTANT("Initialize Modules");
 	switch_init(); //should always be first
-	daemon_init(); //TODO improve how sets mac/ip
-	interface_init();
+	//daemon_init(); //TODO improve how sets mac/ip
+	//interface_init();
 
-	arp_init();
-	arp_register_interface(my_host_mac_addr, my_host_ip_addr);
+	//  userspace80211  thread to communicate with the stub80211 LKM
+	userspace80211_init();
 
-	ipv4_init();
-	ipv4_register_interface(my_host_mac_addr, my_host_ip_addr);
+	//arp_init();
+	//arp_register_interface(my_host_mac_addr, my_host_ip_addr);
 
-	icmp_init();
-	tcp_init();
-	udp_init();
+	//ipv4_init();
+	//ipv4_register_interface(my_host_mac_addr, my_host_ip_addr);
+
+	//icmp_init();
+	//tcp_init();
+	//udp_init();
 
 
 
 
 	//rtm_init(); //TODO when updated/fully implemented
-	logger_init();
+	//logger_init();
 
 	pthread_attr_t fins_pthread_attr;
 	pthread_attr_init(&fins_pthread_attr);
 
 	PRINT_IMPORTANT("Run/start Modules");
 	switch_run(&fins_pthread_attr);
-	daemon_run(&fins_pthread_attr);
-	interface_run(&fins_pthread_attr);
+	//daemon_run(&fins_pthread_attr);
+	//interface_run(&fins_pthread_attr);
 
-	arp_run(&fins_pthread_attr);
-	ipv4_run(&fins_pthread_attr);
-	icmp_run(&fins_pthread_attr);
-	tcp_run(&fins_pthread_attr);
-	udp_run(&fins_pthread_attr);
+
+	//  userspace80211  thread to communicate with the stub80211 LKM
+	userspace80211_run(&fins_pthread_attr);
+
+
+	//arp_run(&fins_pthread_attr);
+	//ipv4_run(&fins_pthread_attr);
+	//icmp_run(&fins_pthread_attr);
+	//tcp_run(&fins_pthread_attr);
+	//udp_run(&fins_pthread_attr);
 
 	//rtm_run(&fins_pthread_attr);
-	logger_run(&fins_pthread_attr);
+	//logger_run(&fins_pthread_attr);
 
 	//############################# //TODO custom test, remove later
 	///*

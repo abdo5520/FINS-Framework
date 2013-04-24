@@ -1,7 +1,7 @@
 /*
- * userside.h
+ * serspace80211.h
  *
- *  Created on: Mar 6, 2011
+ *  Created on: Mar 6, 2013
  *      Author: Abdallah Abdallah
  */
 
@@ -98,6 +98,8 @@
 struct sockaddr_nl local_stub80211_sockaddress; // sockaddr_nl for this process (source)
 struct sockaddr_nl kernel_stub80211_sockaddress; // sockaddr_nl for the kernel (destination)
 int nl_stub80211_sockfd; //temp for now
+//sem_t nl_stub80211_sockfd_sem;
+
 sem_t nl_stub80211_sem;
 
 //TODO merge with ipv4 stuff & create centralized IP/MAC/Device handling
@@ -125,6 +127,13 @@ struct nl_stub80211_to_userspace80211 {
 
 	uint32_t call_id;
 	int call_index;
+};
+
+struct nl_userspace80211_to_stub80211_msg {
+	uint16_t command_type;
+
+	uint16_t commandValueLength;
+	u_char *value;
 };
 
 struct nl_userspace80211_to_stub80211 {
@@ -395,6 +404,38 @@ struct errhdr {
 };
 */
 //--------------------------------------------------- //temp stuff to cross compile, remove/implement better eventual?
+
+
+/**
+ * the corresponding found into mac80211.h
+ */
+struct ieee80211_low_level_stats {			/* Stats about the wireless interface */
+			unsigned int dot11ACKFailureCount;
+			unsigned int dot11RTSFailureCount;
+			unsigned int dot11FCSErrorCount;
+			unsigned int dot11RTSSuccessCount;
+						};
+
+enum stub80211_commands {
+ /* don't change the order or add anything inbetween, this is some sort of ABI! */
+         STUB80211_CMD_SPECS,
+         STUB80211_CMD_GETRATE,
+         STUB80211_CMD_SETRATE,
+         STUB80211_CMD_GETTXPOWER,
+         STUB80211_CMD_SETTXPOWER,
+         STUB80211_CMD_GETCW,
+         STUB80211_CMD_SETCW,
+         STUB80211_CMD_GETCWMIN,
+         STUB80211_CMD_SETCWMIN,
+         STUB80211_CMD_GETCWMAX,
+         STUB80211_CMD_SETCWMAX,
+         STUB80211_CMD_GETRSS,
+         STUB80211_CMD_GETSTAT,
+
+         };
+
+
+// ------------------------------------
 #ifndef POLLRDNORM
 #define POLLRDNORM POLLIN
 #endif

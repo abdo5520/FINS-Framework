@@ -3966,7 +3966,7 @@ wedge_calls[call_index].call_id = -1;
 	pt += optlen;
 	if (ret) {
 		PRINT_ERROR("copy_from_user fail ret=%d", ret);
-kfree(buf);
+		kfree(buf);
 		wedge_calls[call_index].call_id = -1;
 		rc = -1;
 		goto end;
